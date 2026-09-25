@@ -1,0 +1,11 @@
+name: astrbot_plugin_defect_kb
+desc: 杀戮尖塔「故障机器人(The Defect)」人格知识库——纯 BM25 关键词检索，无需 embedding。身份锚点与禁忌每条消息自动注入，卡牌/梗/场景条目通过 defect_kb_search 工具按需检索。
+help: 将文本条目放入 data/plugin_data/astrbot_plugin_defect_kb/kb/ 下的 md 文件（空行分隔条目，触发词开头），保存即热更新，无需重启。identity.md 与 taboos.md 全文自动注入 system prompt，其余文件供 defect_kb_search 检索。
+version: v0.1.0
+author: zeppeli
+repo: https://github.com/Zeppeli777/astrbot_plugin_defect_kb
+keywords:
+  - 杀戮尖塔
+  - 知识库
+  - BM25
+  - 人格

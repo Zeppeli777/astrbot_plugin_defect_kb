@@ -1,0 +1,32 @@
+{
+  "auto_inject": {
+    "description": "每条消息自动将 identity.md 与 taboos.md 注入 system prompt（人设底线，建议开启）",
+    "type": "bool",
+    "default": true
+  },
+  "max_inject_chars": {
+    "description": "自动注入部分的最大字符数，超出截断",
+    "type": "int",
+    "default": 1500
+  },
+  "inject_hint": {
+    "description": "在 system prompt 中注入 defect_kb_search 工具使用提示",
+    "type": "bool",
+    "default": true
+  },
+  "search_top_k": {
+    "description": "defect_kb_search 默认返回条目数",
+    "type": "int",
+    "default": 5,
+    "slider": {
+      "min": 1,
+      "max": 10,
+      "step": 1
+    }
+  },
+  "debug_log": {
+    "description": "把每次检索（query/命中条目/分数）和最终 system prompt 记录到 calls.log",
+    "type": "bool",
+    "default": true
+  }
+}
