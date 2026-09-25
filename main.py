@@ -250,3 +250,146 @@ class FaultBotKBPlugin(Star):
                 f"[{i}] 来源:{r['source']} 相关度:{r['score']:.1f}\n{r['text']}"
             )
         return "\n\n".join(parts)
+
+    # ---------- /dkb 知识库管理命令 ----------
+
+    _KB_NAME_RE = re.compile(r"[A-Za-z0-9_]+")
+
+    def _kb_path(self, name: str) -> Path | None:
+        if not self.index or not self._KB_NAME_RE.fullmatch(name):
+            return None
+        return self.index.kb_dir / f"{name}.md"
+
+    @staticmethod
+    async def _kb_read_blocks(path: Path) -> list[str]:
+        text = path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
+        blocks, cur = [], []
+        for line in text.splitlines():
+            if line.strip():
+                cur.append(line.rstrip())
+            elif cur:
+                blocks.append("\n".join(cur))
+                cur = []
+        if cur:
+            blocks.append("\n".join(cur))
+        return blocks
+
+    def _is_admin(self, event: AstrMessageEvent) -> bool:
+        astrbot_config = self.context.get_config(event.unified_msg_origin)
+        admin_ids = [str(x) for x in astrbot_config.get("admins_id", [])]
+        return str(event.get_sender_id()) in admin_ids
+
+    @filter.command("dkb")
+    async def kb_manage(self, event: AstrMessageEvent):
+        """知识库管理指令（默认仅管理员）。"""
+        if self.config.get("kb_admin_only", True) and not self._is_admin(event):
+            yield event.plain_result("仅管理员可以使用 /dkb 知识库指令。")
+            return
+        if not self.index:
+            yield event.plain_result("知识库未初始化。")
+            return
+        # 从原始消息文本剥掉命令名，避免命令参数按空格切分丢内容
+        text = (event.message_str or "").strip()
+        text = re.sub(r"^/?dkb\s*", "", text, count=1, flags=re.I).strip()
+        raw = text
+        parts = raw.split(None, 1)
+        sub = parts[0] if parts else ""
+        rest = parts[1].strip() if len(parts) > 1 else ""
+
+        if not sub or sub in ("帮助", "help"):
+            yield event.plain_result(
+                "知识库管理（写入后立即热更新生效）：\n"
+                "/dkb 添加 [文件名] <触发词(空格分隔)> | <条目内容>\n"
+                "/dkb 查看 [文件名]        （列出条目编号）\n"
+                "/dkb 删除 <文件名> <编号>\n"
+                "/dkb 文件\n"
+                "文件名省略时默认 templates.md。示例：\n"
+                "/dkb 添加 打招呼 早上好 | 「[POWER ON] 早，塔批。自检通过，大概。」"
+            )
+            return
+
+        if sub == "添加":
+            if "|" not in rest:
+                yield event.plain_result(
+                    "格式：/dkb 添加 [文件名] <触发词...> | <条目内容>（触发词和内容用 | 分隔）"
+                )
+                return
+            left, content = rest.split("|", 1)
+            content = content.strip()
+            tokens = left.split()
+            fname = "templates"
+            if tokens:
+                p0 = self._kb_path(tokens[0])
+                if p0 is not None and p0.exists():
+                    fname = tokens[0]
+                    tokens = tokens[1:]
+            if not tokens or not content:
+                yield event.plain_result("触发词和条目内容都不能为空。")
+                return
+            path = self._kb_path(fname)
+            if path is None:
+                yield event.plain_result("文件名只能包含字母、数字、下划线。")
+                return
+            existing = path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
+            if content in existing:
+                yield event.plain_result("该条目内容已存在，无需重复添加。")
+                return
+            note = ""
+            if fname in ("identity", "taboos"):
+                note = "（注意：该文件每条消息自动注入，改动影响全局）"
+            with path.open("a", encoding="utf-8") as f:
+                if existing and not existing.endswith("\n"):
+                    f.write("\n")
+                f.write(f"\n[触发词: {' '.join(tokens)}]\n{content}\n")
+            _log(f"写入 | {fname}.md | 触发词: {' '.join(tokens)} | 内容: {content[:60]}")
+            preview = content[:40] + ("…" if len(content) > 40 else "")
+            yield event.plain_result(
+                f"已写入 {fname}.md{note}：\n[触发词: {' '.join(tokens)}] {preview}\n索引已热更新，立即生效。"
+            )
+            return
+
+        if sub == "查看":
+            fname = rest or "templates"
+            path = self._kb_path(fname)
+            if path is None or not path.exists():
+                yield event.plain_result(f"文件不存在: {fname}.md（用 /dkb 文件 看列表）")
+                return
+            blocks = await self._kb_read_blocks(path)
+            if not blocks:
+                yield event.plain_result(f"{fname}.md 里还没有条目。")
+                return
+            lines = [f"{fname}.md 共 {len(blocks)} 条："]
+            for i, b in enumerate(blocks, 1):
+                lines.append(f"{i}. {b.splitlines()[0][:56]}")
+            lines.append(f"删除用：/dkb 删除 {fname} <编号>")
+            yield event.plain_result("\n".join(lines))
+            return
+
+        if sub == "删除":
+            toks = rest.split()
+            if len(toks) != 2 or not toks[1].isdigit():
+                yield event.plain_result("格式：/dkb 删除 <文件名> <编号>（编号来自 /dkb 查看）")
+                return
+            fname, num = toks[0], int(toks[1])
+            path = self._kb_path(fname)
+            if path is None or not path.exists():
+                yield event.plain_result(f"文件不存在: {fname}.md")
+                return
+            blocks = await self._kb_read_blocks(path)
+            if not 1 <= num <= len(blocks):
+                yield event.plain_result(f"编号超出范围（1~{len(blocks)}）。")
+                return
+            removed = blocks.pop(num - 1)
+            path.write_text("\n\n".join(blocks) + ("\n" if blocks else ""), encoding="utf-8")
+            _log(f"删除 | {fname}.md #{num} | {removed[:60]}")
+            yield event.plain_result(
+                f"已删除 {fname}.md 第 {num} 条：{removed.splitlines()[0][:56]}"
+            )
+            return
+
+        if sub == "文件":
+            files = sorted(fp.name for fp in self.index.kb_dir.glob("*.md"))
+            yield event.plain_result("知识库文件：\n" + "\n".join(files))
+            return
+
+        yield event.plain_result(f"未知子命令: {sub}。发 /dkb 看帮助。")

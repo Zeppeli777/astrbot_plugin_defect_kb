@@ -53,6 +53,21 @@
 | inject_hint | 注入工具使用提示 | true |
 | search_top_k | 检索默认返回条数 | 5 |
 | debug_log | 记录检索与 system prompt 到 calls.log | true |
+| kb_admin_only | 仅管理员可用 /dkb 写入指令 | true |
+
+## 对话写入（/dkb 指令）
+
+在聊天里直接教 bot（写入后热更新立即生效，默认仅管理员）：
+
+```
+/dkb 添加 打招呼 早上好 | 「[POWER ON] 早，塔批。自检通过……大概。」
+/dkb 添加 scenario_rules 被问进度 | 汇报三层进度，语气丧但继续走
+/dkb 查看 [文件名]      # 列出条目编号
+/dkb 删除 <文件名> <编号>
+/dkb 文件               # 列出全部知识库文件
+```
+
+条目内容即「遇到这类消息时 bot 的标准反应」，LLM 检索到后会照此扮演。
 
 ## 数据再生成
 
