@@ -1,8 +1,11 @@
-# astrbot_plugin_defect_kb
+# 故障机器人知识库（astrbot_plugin_defect_kb）
 
 杀戮尖塔「故障机器人（The Defect，社区昵称鸡煲）」人格知识库插件 for AstrBot。
 
 纯 BM25 关键词检索，**不依赖任何 embedding 模型**：适合只会对话 + tool calling 的普通多模态 LLM API（OpenAI / Anthropic 协议均兼容）。
+
+- 当前版本：v0.1.0
+- 要求：AstrBot >= 4.17.0
 
 ## 工作方式
 
